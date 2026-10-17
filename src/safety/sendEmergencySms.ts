@@ -3,25 +3,20 @@ import * as Location from "expo-location";
 
 import { normalizePhone } from "./phone";
 
-/** Who to text. Phone can be typed any common way, e.g. "905 736 3398". */
 export type EmergencyContact = { name: string; phone: string };
 
 export type AlertReason = "fall" | "manual";
 
 export type SendResult =
-  /** Texts went out from the server with no tap needed. */
   | { ok: true; method: "automatic"; sentCount: number; simulated: boolean }
-  /** The phone's Messages app was opened with everything filled in. */
   | { ok: true; method: "composer"; status: "sent" | "unknown" }
   | { ok: false; error: "no-contacts" | "sms-unavailable" | "cancelled" };
 
-/** Set these in a .env file at the project root (see .env.example). */
 const API_URL = process.env.EXPO_PUBLIC_SAFESTEP_API_URL?.replace(/\/$/, "");
 const API_KEY = process.env.EXPO_PUBLIC_SAFESTEP_API_KEY ?? "";
 
 type Coords = { latitude: number; longitude: number; accuracy_m?: number };
 
-/** Best-effort location: quick cached fix first, then a fresh one with a timeout. */
 async function getLocation(): Promise<Coords | null> {
   try {
     const { granted } = await Location.requestForegroundPermissionsAsync();
@@ -56,7 +51,6 @@ export function buildMessage(
   userName: string,
   coords: Coords | null
 ): string {
-  // This text is sent from the person's own phone, so it speaks as them.
   const name = userName.trim();
   const opening =
     reason === "fall"
@@ -70,7 +64,6 @@ export function buildMessage(
   return `${opening}\n${where}`;
 }
 
-/** Sends through the SafeStep server. Returns null if that isn't possible. */
 async function sendViaServer(
   contacts: EmergencyContact[],
   reason: AlertReason,
@@ -113,17 +106,11 @@ async function sendViaServer(
   }
 }
 
-/**
- * Alerts every emergency contact. Texts are sent automatically through the
- * SafeStep server; if it can't be reached (no signal to the server, not set
- * up), the phone's Messages app opens with the text ready as a backup.
- */
 export async function sendEmergencyAlert(
   contacts: EmergencyContact[],
   reason: AlertReason,
   userName: string
 ): Promise<SendResult> {
-  // Convert numbers to international format; drop invalid ones and duplicates.
   contacts = contacts
     .map((c) => ({ ...c, phone: normalizePhone(c.phone) ?? "" }))
     .filter((c, i, all) => c.phone && all.findIndex((x) => x.phone === c.phone) === i);

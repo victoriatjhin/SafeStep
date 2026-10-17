@@ -3,10 +3,6 @@ import type { Settings } from "./config.ts";
 const TWILIO_URL = (sid: string) =>
   `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
 
-/**
- * Sends one text through Twilio's REST API (no SDK needed).
- * Returns null on success, or an error message.
- */
 export async function sendSms(
   settings: Settings,
   to: string,
@@ -46,7 +42,6 @@ export async function sendSms(
   try {
     detail = JSON.parse(detail).message ?? detail;
   } catch {
-    // not JSON; keep the raw text
   }
   console.warn(`Twilio rejected message to ${to}: ${detail}`);
   return String(detail).slice(0, 200);

@@ -19,7 +19,6 @@ export function twilioConfigured(s: Settings): boolean {
   );
 }
 
-/** Loads backend/.env into process.env (Bun does this itself; Node doesn't). */
 function loadDotenv(): void {
   const path = fileURLToPath(new URL("../.env", import.meta.url));
   if (!existsSync(path)) return;

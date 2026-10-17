@@ -13,7 +13,6 @@ type ContactResult = {
   error: string | null;
 };
 
-/** Allows a few alerts per caller per time window, to stop SMS abuse. */
 export class RateLimiter {
   private hits = new Map<string, number[]>();
 
@@ -52,7 +51,6 @@ export function createApp(
   app.get("/health", (c) => c.json({ ok: true, sms: live ? "twilio" : "simulated" }));
 
   app.post("/v1/alerts", async (c) => {
-    // Auth. Never run an open SMS relay when real texting is on.
     if (!settings.apiKey) {
       if (live) return c.json({ detail: "Server is missing SAFESTEP_API_KEY." }, 500);
     } else {
@@ -77,7 +75,6 @@ export function createApp(
     }
 
     const message = buildMessage(alert);
-    // The same number listed twice should only get one text.
     const contacts = [...new Map(alert.contacts.map((ct) => [ct.phone, ct])).values()];
 
     if (!live) {

@@ -11,7 +11,6 @@ if (!twilioConfigured(settings)) {
   console.warn("Twilio is not configured: alerts will be logged, not sent.");
 }
 
-// @hono/node-server works under both Node and Bun.
 serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
   console.info(`SafeStep backend listening on http://localhost:${info.port}`);
 });

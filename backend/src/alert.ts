@@ -1,5 +1,3 @@
-/** Alert request validation and message text. */
-
 export type Contact = { name: string; phone: string };
 
 export type AlertRequest = {
@@ -12,7 +10,6 @@ export type AlertRequest = {
 const E164 = /^\+[1-9]\d{7,14}$/;
 const MAX_CONTACTS = 10;
 
-/** Returns the cleaned request, or a list of problems. */
 export function parseAlertRequest(
   body: unknown
 ): { ok: true; value: AlertRequest } | { ok: false; errors: string[] } {

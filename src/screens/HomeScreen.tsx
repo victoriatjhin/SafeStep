@@ -53,11 +53,11 @@ export default function HomeScreen() {
     const handleGetHelp = async () => {
       if (contacts.length === 0) {
         Alert.alert(
-          "No emergency contacts",
-          "Add someone to your support circle so SafeStep can text them.",
+          "No caretaker paired",
+          "Pair with a caretaker in the People tab so SafeStep can text them.",
           [
             { text: "Cancel", style: "cancel" },
-            { text: "Add contact", onPress: () => navigation.navigate("EmergencyContact") },
+            { text: "Go to People", onPress: () => navigation.navigate("People") },
           ]
         );
         return;

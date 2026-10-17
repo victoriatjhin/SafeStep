@@ -39,7 +39,7 @@ function resultText(result: SendResult): string {
   if (result.ok) return "Your emergency message is ready. Your contacts have been asked to check on you.";
   switch (result.error) {
     case "no-contacts":
-      return "No emergency contacts are saved. Add someone in the People tab so SafeStep can text them.";
+      return "No caretaker is paired yet. Pair with one in the People tab so SafeStep can text them.";
     case "sms-unavailable":
       return "This device can't send text messages.";
     case "cancelled":
@@ -132,8 +132,8 @@ export default function FallAlertModal({
 
             <Text style={styles.explainer}>
               {hasContacts
-                ? "If you don't respond, SafeStep will automatically text your emergency contacts with your location."
-                : "You have no emergency contacts yet. Add them in the People tab."}
+                ? "If you don't respond, SafeStep will automatically text your caretaker with your location."
+                : "No caretaker is paired yet. Pair with one in the People tab."}
             </Text>
 
             <View style={styles.buttons}>

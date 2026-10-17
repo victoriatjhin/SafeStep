@@ -25,6 +25,7 @@ import {
   SendResult,
   sendEmergencyAlert,
 } from "./sendEmergencySms";
+import { normalizePhone } from "./phone";
 import FallAlertModal from "../components/FallAlertModal";
 
 /** 50 Hz: fast enough to catch the short free-fall dip before an impact. */
@@ -33,12 +34,16 @@ const SAMPLE_INTERVAL_MS = 20;
 export type ContactInput = Omit<EmergencyContact, "id">;
 
 type SafetyContextValue = {
+  /** Who gets texted. Set this from the paired caretaker(s). */
   contacts: EmergencyContact[];
-  addContact: (contact: ContactInput) => void;
-  updateContact: (id: string, contact: ContactInput) => void;
-  removeContact: (id: string) => void;
+  /**
+   * Replaces the contact list, e.g. after pairing:
+   * setEmergencyContacts([{ name: "Jeffrey", phone: "905 736 3398" }]).
+   * Numbers are converted to international format; invalid ones are dropped.
+   */
+  setEmergencyContacts: (contacts: ContactInput[]) => void;
 
-  /** The person's own name, included in alert texts. */
+  /** The patient's own name, included in alert texts. */
   userName: string;
   setUserName: (name: string) => void;
 
@@ -121,36 +126,20 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [fallDetectionEnabled, sensorAvailable, appActive, alertVisible]);
 
-  const addContact = useCallback((contact: ContactInput) => {
-    setContacts((prev) => {
-      const next = [
-        ...prev,
-        { ...contact, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
-      ];
-      saveContacts(next);
-      return next;
-    });
-  }, []);
-
-  const updateContact = useCallback((id: string, contact: ContactInput) => {
-    setContacts((prev) => {
-      const next = prev.map((c) => (c.id === id ? { ...contact, id } : c));
-      saveContacts(next);
-      return next;
-    });
+  const setEmergencyContacts = useCallback((input: ContactInput[]) => {
+    const next: EmergencyContact[] = [];
+    for (const c of input) {
+      const phone = normalizePhone(c.phone);
+      if (!phone || next.some((n) => n.phone === phone)) continue;
+      next.push({ ...c, phone, id: phone });
+    }
+    setContacts(next);
+    saveContacts(next);
   }, []);
 
   const setUserName = useCallback((name: string) => {
     setUserNameState(name);
     saveUserName(name);
-  }, []);
-
-  const removeContact = useCallback((id: string) => {
-    setContacts((prev) => {
-      const next = prev.filter((c) => c.id !== id);
-      saveContacts(next);
-      return next;
-    });
   }, []);
 
   const setFallDetectionEnabled = useCallback((enabled: boolean) => {
@@ -167,9 +156,7 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<SafetyContextValue>(
     () => ({
       contacts,
-      addContact,
-      updateContact,
-      removeContact,
+      setEmergencyContacts,
       userName,
       setUserName,
       fallDetectionEnabled,
@@ -180,9 +167,7 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       contacts,
-      addContact,
-      updateContact,
-      removeContact,
+      setEmergencyContacts,
       userName,
       setUserName,
       fallDetectionEnabled,

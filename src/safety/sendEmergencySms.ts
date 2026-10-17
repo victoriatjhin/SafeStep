@@ -1,7 +1,10 @@
 import * as SMS from "expo-sms";
 import * as Location from "expo-location";
 
-import type { EmergencyContact } from "./storage";
+import { normalizePhone } from "./phone";
+
+/** Who to text. Phone can be typed any common way, e.g. "905 736 3398". */
+export type EmergencyContact = { name: string; phone: string };
 
 export type AlertReason = "fall" | "manual";
 
@@ -120,6 +123,10 @@ export async function sendEmergencyAlert(
   reason: AlertReason,
   userName: string
 ): Promise<SendResult> {
+  // Convert numbers to international format; drop invalid ones and duplicates.
+  contacts = contacts
+    .map((c) => ({ ...c, phone: normalizePhone(c.phone) ?? "" }))
+    .filter((c, i, all) => c.phone && all.findIndex((x) => x.phone === c.phone) === i);
   if (contacts.length === 0) return { ok: false, error: "no-contacts" };
 
   const coords = await getLocation();

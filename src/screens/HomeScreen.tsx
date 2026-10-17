@@ -6,8 +6,6 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  Alert,
-  AccessibilityInfo,
 } from "react-native";
 
 
@@ -36,7 +34,6 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import ActionCard from "../components/ActionCard";
 import { COLORS } from "../constants/theme";
-import { useSafety } from "../safety/SafetyContext";
 
 
 type HomeNavigationProp = CompositeNavigationProp<
@@ -48,31 +45,6 @@ type HomeNavigationProp = CompositeNavigationProp<
 export default function HomeScreen() {
 
     const navigation = useNavigation<HomeNavigationProp>();
-    const { contacts, sendAlert } = useSafety();
-
-    const handleGetHelp = async () => {
-      if (contacts.length === 0) {
-        Alert.alert(
-          "No caretaker paired",
-          "Pair with a caretaker in the People tab so SafeStep can text them.",
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Go to People", onPress: () => navigation.navigate("People") },
-          ]
-        );
-        return;
-      }
-      const result = await sendAlert("manual");
-      if (result.ok && result.method === "automatic") {
-        const message = result.simulated
-          ? "Test mode: the server is not connected to Twilio, so no texts were sent."
-          : `Help is on the way. ${result.sentCount} contact${result.sentCount === 1 ? " was" : "s were"} texted with your location.`;
-        AccessibilityInfo.announceForAccessibility(message);
-        Alert.alert(result.simulated ? "Test mode" : "Help requested", message);
-      } else if (!result.ok && result.error === "sms-unavailable") {
-        Alert.alert("Can't send texts", "This device can't send text messages, and the SafeStep server couldn't be reached.");
-      }
-    };
 
   return (
     <ScrollView
@@ -115,7 +87,7 @@ export default function HomeScreen() {
             size={30}
             iconColor="#EF8196"
             backgroundColor="#38202E"
-            onPress={handleGetHelp}
+            onPress={() => console.log("Help")}
           />
         </View>
 

@@ -15,6 +15,7 @@ import {
 import HomeScreen from "../screens/HomeScreen";
 import PlaceholderScreen from "../screens/PlaceholderScreen";
 import ListeningScreen from "../screens/ListeningScreen";
+import SupportCircleScreen from "../screens/SupportCircleScreen";
 import { COLORS } from "../constants/theme";
 
 import type {
@@ -57,14 +58,7 @@ function MainTabs() {
       <Tab.Screen name="Home" component={HomeScreen} />
 
 
-      <Tab.Screen name="People">
-        {() => (
-          <PlaceholderScreen
-            title="Your Support Circle"
-            description="Manage trusted contacts and assistance preferences."
-          />
-        )}
-      </Tab.Screen>
+      <Tab.Screen name="People" component={SupportCircleScreen} />
 
       <Tab.Screen name="Settings">
         {() => (

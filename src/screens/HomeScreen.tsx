@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  Alert,
 } from "react-native";
 
 
@@ -34,6 +35,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import ActionCard from "../components/ActionCard";
 import { COLORS } from "../constants/theme";
+import { useSafety } from "../safety/SafetyContext";
 
 
 type HomeNavigationProp = CompositeNavigationProp<
@@ -45,6 +47,25 @@ type HomeNavigationProp = CompositeNavigationProp<
 export default function HomeScreen() {
 
     const navigation = useNavigation<HomeNavigationProp>();
+    const { contacts, requestHelp } = useSafety();
+
+    const handleGetHelp = async () => {
+      if (contacts.length === 0) {
+        Alert.alert(
+          "No emergency contacts",
+          "Add someone to your support circle so SafeStep can text them.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Add contact", onPress: () => navigation.navigate("People") },
+          ]
+        );
+        return;
+      }
+      const result = await requestHelp();
+      if (!result.ok && result.error === "sms-unavailable") {
+        Alert.alert("Can't send texts", "This device can't send text messages.");
+      }
+    };
 
   return (
     <ScrollView
@@ -87,7 +108,7 @@ export default function HomeScreen() {
             size={30}
             iconColor="#EF8196"
             backgroundColor="#38202E"
-            onPress={() => console.log("Help")}
+            onPress={handleGetHelp}
           />
         </View>
 

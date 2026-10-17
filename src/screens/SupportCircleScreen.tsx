@@ -1,180 +1,135 @@
-import React, { useState } from "react";
+import React from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
-import { Activity, Phone, Trash2, UserPlus } from "lucide-react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import {
+  Activity,
+  ChevronRight,
+  Phone,
+  UserPlus,
+} from "lucide-react-native";
 
 import { COLORS } from "../constants/theme";
 import { useSafety } from "../safety/SafetyContext";
-
-/** Loose check: at least 7 digits, optional leading +, common separators. */
-function isValidPhone(phone: string): boolean {
-  const trimmed = phone.trim();
-  return /^\+?[\d\s().-]+$/.test(trimmed) && trimmed.replace(/\D/g, "").length >= 7;
-}
+import { formatPhone } from "../safety/phone";
+import type { RootStackParamList } from "../types/navigation";
 
 export default function SupportCircleScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
     contacts,
-    addContact,
-    removeContact,
     fallDetectionEnabled,
     setFallDetectionEnabled,
     sensorAvailable,
     simulateFall,
   } = useSafety();
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const handleAdd = () => {
-    if (!name.trim()) {
-      setError("Enter a name.");
-      return;
-    }
-    if (!isValidPhone(phone)) {
-      setError("Enter a valid phone number, including area code.");
-      return;
-    }
-    addContact(name, phone);
-    setName("");
-    setPhone("");
-    setError(null);
-  };
-
-  const confirmRemove = (id: string, contactName: string) => {
-    Alert.alert(
-      "Remove contact?",
-      `${contactName} will no longer get emergency texts.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: () => removeContact(id) },
-      ]
-    );
-  };
-
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
     >
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.heading} accessibilityRole="header">
-          Your Support Circle
-        </Text>
-        <Text style={styles.subtitle}>
-          These people get a text with your location if you fall or ask for help.
-        </Text>
+      <Text style={styles.heading} accessibilityRole="header">
+        Your Support Circle
+      </Text>
+      <Text style={styles.subtitle}>
+        These people are texted automatically with your location if you fall or
+        ask for help.
+      </Text>
 
-        {/* Fall detection */}
+      {/* Contacts */}
+      <Text style={styles.sectionTitle} accessibilityRole="header">
+        Emergency contacts
+      </Text>
+
+      {contacts.length === 0 ? (
         <View style={styles.card}>
-          <View style={styles.row}>
-            <Activity size={26} color={COLORS.cyan} />
+          <Text style={styles.cardTitle}>No emergency contacts yet</Text>
+          <Text style={styles.cardText}>
+            Add at least one person so SafeStep can get you help.
+          </Text>
+        </View>
+      ) : (
+        contacts.map((c) => (
+          <Pressable
+            key={c.id}
+            style={({ pressed }) => [
+              styles.card,
+              styles.row,
+              pressed && styles.pressed,
+            ]}
+            onPress={() =>
+              navigation.navigate("EmergencyContact", { contactId: c.id })
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`${c.name}${c.relationship ? `, ${c.relationship}` : ""}, ${formatPhone(c.phone)}`}
+            accessibilityHint="Edit or remove this contact"
+          >
+            <Phone size={22} color={COLORS.green} />
             <View style={styles.flex}>
-              <Text style={styles.cardTitle}>Fall detection</Text>
+              <Text style={styles.cardTitle}>{c.name}</Text>
               <Text style={styles.cardText}>
-                {sensorAvailable === false
-                  ? "Not available on this device."
-                  : "Works while SafeStep is open."}
+                {c.relationship ? `${c.relationship} · ` : ""}
+                {formatPhone(c.phone)}
               </Text>
             </View>
-            <Switch
-              value={fallDetectionEnabled && sensorAvailable !== false}
-              onValueChange={setFallDetectionEnabled}
-              disabled={sensorAvailable === false}
-              trackColor={{ true: COLORS.primary, false: COLORS.border }}
-              accessibilityLabel="Fall detection"
-            />
-          </View>
-
-          <Pressable
-            style={styles.secondaryButton}
-            accessibilityRole="button"
-            accessibilityHint="Shows the fall alert so you can try it out"
-            onPress={simulateFall}
-          >
-            <Text style={styles.secondaryButtonText}>Test fall alert</Text>
+            <ChevronRight size={22} color={COLORS.muted} />
           </Pressable>
-        </View>
+        ))
+      )}
 
-        {/* Contacts */}
-        <Text style={styles.sectionTitle}>Emergency contacts</Text>
+      <Pressable
+        style={styles.primaryButton}
+        onPress={() => navigation.navigate("EmergencyContact")}
+        accessibilityRole="button"
+        accessibilityLabel="Add emergency contact"
+      >
+        <UserPlus size={22} color="#FFFFFF" />
+        <Text style={styles.primaryButtonText}>Add emergency contact</Text>
+      </Pressable>
 
-        {contacts.length === 0 ? (
-          <Text style={styles.empty}>No contacts yet. Add one below.</Text>
-        ) : (
-          contacts.map((c) => (
-            <View key={c.id} style={[styles.card, styles.row]}>
-              <Phone size={22} color={COLORS.green} />
-              <View style={styles.flex}>
-                <Text style={styles.cardTitle}>{c.name}</Text>
-                <Text style={styles.cardText}>{c.phone}</Text>
-              </View>
-              <Pressable
-                onPress={() => confirmRemove(c.id, c.name)}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${c.name}`}
-                hitSlop={12}
-              >
-                <Trash2 size={22} color={COLORS.red} />
-              </Pressable>
-            </View>
-          ))
-        )}
-
-        {/* Add contact */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Add a contact</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Name"
-            placeholderTextColor={COLORS.muted}
-            accessibilityLabel="Contact name"
-            autoCapitalize="words"
-            returnKeyType="next"
-          />
-          <TextInput
-            style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="Phone number"
-            placeholderTextColor={COLORS.muted}
-            accessibilityLabel="Contact phone number"
-            keyboardType="phone-pad"
-            onSubmitEditing={handleAdd}
-          />
-          {error && (
-            <Text style={styles.error} accessibilityLiveRegion="polite">
-              {error}
+      {/* Fall detection */}
+      <Text style={styles.sectionTitle} accessibilityRole="header">
+        Fall detection
+      </Text>
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <Activity size={26} color={COLORS.cyan} />
+          <View style={styles.flex}>
+            <Text style={styles.cardTitle}>Detect falls</Text>
+            <Text style={styles.cardText}>
+              {sensorAvailable === false
+                ? "Not available on this device."
+                : "Works while SafeStep is open."}
             </Text>
-          )}
-          <Pressable
-            style={styles.primaryButton}
-            accessibilityRole="button"
-            onPress={handleAdd}
-          >
-            <UserPlus size={22} color="#FFFFFF" />
-            <Text style={styles.primaryButtonText}>Add contact</Text>
-          </Pressable>
+          </View>
+          <Switch
+            value={fallDetectionEnabled && sensorAvailable !== false}
+            onValueChange={setFallDetectionEnabled}
+            disabled={sensorAvailable === false}
+            trackColor={{ true: COLORS.primary, false: COLORS.border }}
+            accessibilityLabel="Fall detection"
+          />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+        <Pressable
+          style={styles.secondaryButton}
+          accessibilityRole="button"
+          accessibilityHint="Shows the fall alert. Tap I'm OK to cancel before it texts anyone."
+          onPress={simulateFall}
+        >
+          <Text style={styles.secondaryButtonText}>Test fall alert</Text>
+        </Pressable>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -188,7 +143,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 60,
     paddingBottom: 40,
-    gap: 14,
+    gap: 12,
   },
   heading: {
     color: COLORS.text,
@@ -199,23 +154,21 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     fontSize: 16,
     lineHeight: 23,
-    marginBottom: 6,
   },
   sectionTitle: {
     color: COLORS.text,
     fontSize: 18,
     fontWeight: "700",
-    marginTop: 10,
-  },
-  empty: {
-    color: COLORS.muted,
-    fontSize: 15,
+    marginTop: 16,
   },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 18,
     padding: 16,
     gap: 12,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   row: {
     flexDirection: "row",
@@ -232,22 +185,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  input: {
-    backgroundColor: COLORS.surfaceLight,
-    color: COLORS.text,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    minHeight: 54,
-    fontSize: 16,
-  },
-  error: {
-    color: COLORS.red,
-    fontSize: 14,
-  },
   primaryButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 16,
-    minHeight: 56,
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

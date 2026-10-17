@@ -7,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  AccessibilityInfo,
 } from "react-native";
 
 
@@ -56,14 +57,20 @@ export default function HomeScreen() {
           "Add someone to your support circle so SafeStep can text them.",
           [
             { text: "Cancel", style: "cancel" },
-            { text: "Add contact", onPress: () => navigation.navigate("People") },
+            { text: "Add contact", onPress: () => navigation.navigate("EmergencyContact") },
           ]
         );
         return;
       }
       const result = await requestHelp();
-      if (!result.ok && result.error === "sms-unavailable") {
-        Alert.alert("Can't send texts", "This device can't send text messages.");
+      if (result.ok && result.method === "automatic") {
+        const message = result.simulated
+          ? "Test mode: the server is not connected to Twilio, so no texts were sent."
+          : `Help is on the way. ${result.sentCount} contact${result.sentCount === 1 ? " was" : "s were"} texted with your location.`;
+        AccessibilityInfo.announceForAccessibility(message);
+        Alert.alert(result.simulated ? "Test mode" : "Help requested", message);
+      } else if (!result.ok && result.error === "sms-unavailable") {
+        Alert.alert("Can't send texts", "This device can't send text messages, and the SafeStep server couldn't be reached.");
       }
     };
 

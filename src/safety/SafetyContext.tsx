@@ -15,30 +15,39 @@ import {
   EmergencyContact,
   loadContacts,
   loadFallDetectionEnabled,
+  loadUserName,
   saveContacts,
   saveFallDetectionEnabled,
+  saveUserName,
 } from "./storage";
 import {
   AlertReason,
   SendResult,
-  sendEmergencySms,
+  sendEmergencyAlert,
 } from "./sendEmergencySms";
 import FallAlertModal from "../components/FallAlertModal";
 
 /** 50 Hz: fast enough to catch the short free-fall dip before an impact. */
 const SAMPLE_INTERVAL_MS = 20;
 
+export type ContactInput = Omit<EmergencyContact, "id">;
+
 type SafetyContextValue = {
   contacts: EmergencyContact[];
-  addContact: (name: string, phone: string) => void;
+  addContact: (contact: ContactInput) => void;
+  updateContact: (id: string, contact: ContactInput) => void;
   removeContact: (id: string) => void;
+
+  /** The person's own name, included in alert texts. */
+  userName: string;
+  setUserName: (name: string) => void;
 
   fallDetectionEnabled: boolean;
   setFallDetectionEnabled: (enabled: boolean) => void;
   /** null while checking; false if this device has no usable accelerometer. */
   sensorAvailable: boolean | null;
 
-  /** Opens the SMS composer to all contacts right away. */
+  /** Alerts all contacts right away (automatic, or Messages app as backup). */
   requestHelp: () => Promise<SendResult>;
   /** Shows the "Are you OK?" countdown, as if a fall was detected. */
   simulateFall: () => void;
@@ -54,6 +63,7 @@ export function useSafety(): SafetyContextValue {
 
 export function SafetyProvider({ children }: { children: React.ReactNode }) {
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
+  const [userName, setUserNameState] = useState("");
   const [fallDetectionEnabled, setEnabledState] = useState(true);
   const [sensorAvailable, setSensorAvailable] = useState<boolean | null>(null);
   const [alertVisible, setAlertVisible] = useState(false);
@@ -63,12 +73,15 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
 
   const contactsRef = useRef(contacts);
   contactsRef.current = contacts;
+  const userNameRef = useRef(userName);
+  userNameRef.current = userName;
   const detectorRef = useRef(new FallDetector());
 
   // Load saved settings once.
   useEffect(() => {
     loadContacts().then(setContacts);
     loadFallDetectionEnabled().then(setEnabledState);
+    loadUserName().then(setUserNameState);
   }, []);
 
   useEffect(() => {
@@ -108,19 +121,28 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [fallDetectionEnabled, sensorAvailable, appActive, alertVisible]);
 
-  const addContact = useCallback((name: string, phone: string) => {
+  const addContact = useCallback((contact: ContactInput) => {
     setContacts((prev) => {
       const next = [
         ...prev,
-        {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          name: name.trim(),
-          phone: phone.trim(),
-        },
+        { ...contact, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
       ];
       saveContacts(next);
       return next;
     });
+  }, []);
+
+  const updateContact = useCallback((id: string, contact: ContactInput) => {
+    setContacts((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...contact, id } : c));
+      saveContacts(next);
+      return next;
+    });
+  }, []);
+
+  const setUserName = useCallback((name: string) => {
+    setUserNameState(name);
+    saveUserName(name);
   }, []);
 
   const removeContact = useCallback((id: string) => {
@@ -137,7 +159,8 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const send = useCallback(
-    (reason: AlertReason) => sendEmergencySms(contactsRef.current, reason),
+    (reason: AlertReason) =>
+      sendEmergencyAlert(contactsRef.current, reason, userNameRef.current),
     []
   );
 
@@ -145,7 +168,10 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
     () => ({
       contacts,
       addContact,
+      updateContact,
       removeContact,
+      userName,
+      setUserName,
       fallDetectionEnabled,
       setFallDetectionEnabled,
       sensorAvailable,
@@ -155,7 +181,10 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
     [
       contacts,
       addContact,
+      updateContact,
       removeContact,
+      userName,
+      setUserName,
       fallDetectionEnabled,
       setFallDetectionEnabled,
       sensorAvailable,

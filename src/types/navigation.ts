@@ -14,4 +14,6 @@ export type RootStackParamList = {
   Found: undefined;
   Awareness: undefined;
   Help: undefined;
+  /** Without a contactId the form adds a new contact. */
+  EmergencyContact: { contactId?: string } | undefined;
 };

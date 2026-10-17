@@ -16,6 +16,7 @@ import HomeScreen from "../screens/HomeScreen";
 import PlaceholderScreen from "../screens/PlaceholderScreen";
 import ListeningScreen from "../screens/ListeningScreen";
 import SupportCircleScreen from "../screens/SupportCircleScreen";
+import EmergencyContactFormScreen from "../screens/EmergencyContactFormScreen";
 import { COLORS } from "../constants/theme";
 
 import type {
@@ -104,6 +105,12 @@ export default function AppNavigator() {
         name="Camera"
         component={CameraScreen}
         options={{ headerShown: false }}
+        />
+
+        <Stack.Screen
+          name="EmergencyContact"
+          component={EmergencyContactFormScreen}
+          options={{ title: "Add emergency contact" }}
         />
 
         <Stack.Screen name="Found" options={{ title: "" }}>

@@ -6,11 +6,20 @@ import type { EmergencyContact } from "./storage";
 export type AlertReason = "fall" | "manual";
 
 export type SendResult =
-  | { ok: true; status: "sent" | "unknown" }
+  /** Texts went out from the server with no tap needed. */
+  | { ok: true; method: "automatic"; sentCount: number; simulated: boolean }
+  /** The phone's Messages app was opened with everything filled in. */
+  | { ok: true; method: "composer"; status: "sent" | "unknown" }
   | { ok: false; error: "no-contacts" | "sms-unavailable" | "cancelled" };
 
+/** Set these in a .env file at the project root (see .env.example). */
+const API_URL = process.env.EXPO_PUBLIC_SAFESTEP_API_URL?.replace(/\/$/, "");
+const API_KEY = process.env.EXPO_PUBLIC_SAFESTEP_API_KEY ?? "";
+
+type Coords = { latitude: number; longitude: number; accuracy_m?: number };
+
 /** Best-effort location: quick cached fix first, then a fresh one with a timeout. */
-async function getLocationLink(): Promise<string | null> {
+async function getLocation(): Promise<Coords | null> {
   try {
     const { granted } = await Location.requestForegroundPermissionsAsync();
     if (!granted) return null;
@@ -22,16 +31,18 @@ async function getLocationLink(): Promise<string | null> {
 
     if (!position) {
       position = await Promise.race([
-        Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        }),
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
       ]);
     }
-
     if (!position) return null;
-    const { latitude, longitude } = position.coords;
-    return `https://maps.google.com/?q=${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+
+    const { latitude, longitude, accuracy } = position.coords;
+    return {
+      latitude,
+      longitude,
+      ...(accuracy != null ? { accuracy_m: accuracy } : {}),
+    };
   } catch {
     return null;
   }
@@ -39,40 +50,91 @@ async function getLocationLink(): Promise<string | null> {
 
 export function buildMessage(
   reason: AlertReason,
-  locationLink: string | null
+  userName: string,
+  coords: Coords | null
 ): string {
+  // This text is sent from the person's own phone, so it speaks as them.
+  const name = userName.trim();
   const opening =
     reason === "fall"
-      ? "SafeStep alert: a possible fall was detected and I didn't respond. Please check on me."
-      : "SafeStep alert: I need help. Please contact me as soon as you can.";
+      ? `SafeStep alert: ${name ? `This is ${name}. ` : ""}I may have fallen and didn't respond. Please check on me now.`
+      : `SafeStep alert: ${name ? `This is ${name}. ` : ""}I need help. Please contact me as soon as you can.`;
 
-  const where = locationLink
-    ? `My location: ${locationLink}`
-    : "My location couldn't be determined.";
+  const where = coords
+    ? `Location: https://maps.google.com/?q=${coords.latitude.toFixed(6)},${coords.longitude.toFixed(6)}`
+    : "Location unavailable.";
 
   return `${opening}\n${where}`;
 }
 
-/**
- * Opens the phone's SMS composer with every emergency contact and the
- * message filled in. Phones don't let apps send texts silently, so the
- * person (or someone nearby) still has to tap Send.
- */
-export async function sendEmergencySms(
+/** Sends through the SafeStep server. Returns null if that isn't possible. */
+async function sendViaServer(
   contacts: EmergencyContact[],
-  reason: AlertReason
+  reason: AlertReason,
+  userName: string,
+  coords: Coords | null
+): Promise<SendResult | null> {
+  if (!API_URL) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const resp = await fetch(`${API_URL}/v1/alerts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
+      },
+      body: JSON.stringify({
+        reason,
+        user_name: userName.trim() || null,
+        contacts: contacts.map((c) => ({ name: c.name, phone: c.phone })),
+        location: coords,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return {
+      ok: true,
+      method: "automatic",
+      sentCount: data.sent_count ?? 0,
+      simulated: Boolean(data.simulated),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Alerts every emergency contact. Texts are sent automatically through the
+ * SafeStep server; if it can't be reached (no signal to the server, not set
+ * up), the phone's Messages app opens with the text ready as a backup.
+ */
+export async function sendEmergencyAlert(
+  contacts: EmergencyContact[],
+  reason: AlertReason,
+  userName: string
 ): Promise<SendResult> {
   if (contacts.length === 0) return { ok: false, error: "no-contacts" };
+
+  const coords = await getLocation();
+
+  const automatic = await sendViaServer(contacts, reason, userName, coords);
+  if (automatic) return automatic;
 
   const available = await SMS.isAvailableAsync();
   if (!available) return { ok: false, error: "sms-unavailable" };
 
-  const link = await getLocationLink();
   const { result } = await SMS.sendSMSAsync(
     contacts.map((c) => c.phone),
-    buildMessage(reason, link)
+    buildMessage(reason, userName, coords)
   );
 
   if (result === "cancelled") return { ok: false, error: "cancelled" };
-  return { ok: true, status: result };
+  return { ok: true, method: "composer", status: result };
 }

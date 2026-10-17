@@ -29,6 +29,13 @@ type Stage =
   | { kind: "done"; result: SendResult };
 
 function resultText(result: SendResult): string {
+  if (result.ok && result.method === "automatic") {
+    if (result.simulated) {
+      return "Test mode: the SafeStep server isn't connected to a texting service yet, so no texts were sent.";
+    }
+    const n = result.sentCount;
+    return `${n} emergency contact${n === 1 ? " was" : "s were"} texted with your location. Help is on the way.`;
+  }
   if (result.ok) return "Your emergency message is ready. Your contacts have been asked to check on you.";
   switch (result.error) {
     case "no-contacts":
@@ -125,7 +132,7 @@ export default function FallAlertModal({
 
             <Text style={styles.explainer}>
               {hasContacts
-                ? "If you don't respond, SafeStep will text your emergency contacts with your location."
+                ? "If you don't respond, SafeStep will automatically text your emergency contacts with your location."
                 : "You have no emergency contacts yet. Add them in the People tab."}
             </Text>
 

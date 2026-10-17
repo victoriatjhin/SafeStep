@@ -3,11 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export type EmergencyContact = {
   id: string;
   name: string;
+  /** International format, e.g. +15195551234. */
   phone: string;
+  relationship?: string;
 };
 
 const CONTACTS_KEY = "safestep.emergencyContacts";
 const FALL_DETECTION_KEY = "safestep.fallDetectionEnabled";
+const USER_NAME_KEY = "safestep.userName";
 
 export async function loadContacts(): Promise<EmergencyContact[]> {
   try {
@@ -40,4 +43,17 @@ export async function saveFallDetectionEnabled(
   enabled: boolean
 ): Promise<void> {
   await AsyncStorage.setItem(FALL_DETECTION_KEY, String(enabled));
+}
+
+/** The person's own name, so alerts say who needs help. */
+export async function loadUserName(): Promise<string> {
+  try {
+    return (await AsyncStorage.getItem(USER_NAME_KEY)) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export async function saveUserName(name: string): Promise<void> {
+  await AsyncStorage.setItem(USER_NAME_KEY, name);
 }

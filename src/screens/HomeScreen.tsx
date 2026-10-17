@@ -48,7 +48,7 @@ type HomeNavigationProp = CompositeNavigationProp<
 export default function HomeScreen() {
 
     const navigation = useNavigation<HomeNavigationProp>();
-    const { contacts, requestHelp } = useSafety();
+    const { contacts, sendAlert } = useSafety();
 
     const handleGetHelp = async () => {
       if (contacts.length === 0) {
@@ -62,7 +62,7 @@ export default function HomeScreen() {
         );
         return;
       }
-      const result = await requestHelp();
+      const result = await sendAlert("manual");
       if (result.ok && result.method === "automatic") {
         const message = result.simulated
           ? "Test mode: the server is not connected to Twilio, so no texts were sent."

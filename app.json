@@ -24,12 +24,6 @@
     "plugins": [
       "expo-status-bar",
       [
-        "expo-sensors",
-        {
-          "motionPermission": "SafeStep uses motion sensors to detect falls and alert your emergency contacts."
-        }
-      ],
-      [
         "expo-location",
         {
           "locationWhenInUsePermission": "SafeStep shares your location with your emergency contacts when you fall or ask for help."

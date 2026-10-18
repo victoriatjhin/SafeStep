@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,10 +18,16 @@ import {
   Search,
   X,
   ScanSearch,
+  Square,
+  ShieldAlert,
+  Eye,
 } from "lucide-react-native";
+import * as Speech from "expo-speech";
 import { useNavigation } from "@react-navigation/native";
 
 import { COLORS } from "../constants/theme";
+import { pickPictureSize, useVisionGuide } from "../vision/useVisionGuide";
+import { detectFrame } from "../vision/visionClient";
 
 export default function CameraScreen() {
   const navigation = useNavigation();
@@ -30,7 +36,31 @@ export default function CameraScreen() {
     useCameraPermissions();
 
   const [targetObject, setTargetObject] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
+  const [activeMode, setActiveMode] = useState<"find" | "obstacles" | null>(null);
+  const [searchTarget, setSearchTarget] = useState("");
+  const [cameraReady, setCameraReady] = useState(false);
+  const [pictureSize, setPictureSize] = useState<string | undefined>();
+  const [sceneText, setSceneText] = useState<string | null>(null);
+  const [describing, setDescribing] = useState(false);
+  const cameraRef = useRef<CameraView>(null);
+
+  const { result, error } = useVisionGuide({
+    cameraRef,
+    cameraReady,
+    active: activeMode !== null && !describing,
+    mode: activeMode ?? "obstacles",
+    target: activeMode === "find" ? searchTarget : undefined,
+  });
+
+  const handleCameraReady = async () => {
+    try {
+      const sizes = await cameraRef.current?.getAvailablePictureSizesAsync();
+      setPictureSize(pickPictureSize(sizes ?? []));
+    } catch {
+      setPictureSize(undefined);
+    }
+    setCameraReady(true);
+  };
 
   // Camera permissions are still loading
   if (!permission) {
@@ -72,19 +102,81 @@ export default function CameraScreen() {
     );
   }
 
+  const announce = (text: string) => {
+    setTimeout(() => Speech.speak(text), 150);
+  };
+
+  const isSearching = activeMode === "find";
+  const isWatching = activeMode === "obstacles";
+
   const handleSearch = () => {
+    if (isSearching) {
+      setActiveMode(null);
+      announce("Stopped searching.");
+      return;
+    }
     if (!targetObject.trim()) return;
 
     Keyboard.dismiss();
-    setIsSearching(true);
+    setSceneText(null);
+    setSearchTarget(targetObject.trim());
+    setActiveMode("find");
+    announce(`Looking for your ${targetObject.trim()}. Move the phone slowly.`);
   };
+
+  const toggleObstacles = () => {
+    if (isWatching) {
+      setActiveMode(null);
+      announce("Obstacle warnings off.");
+      return;
+    }
+    Keyboard.dismiss();
+    setSceneText(null);
+    setActiveMode("obstacles");
+    announce("Watching for obstacles. Point the phone ahead of you.");
+  };
+
+  const describeScene = async () => {
+    if (!cameraReady || describing || !cameraRef.current) return;
+    setDescribing(true);
+    try {
+      await Speech.stop();
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.4, shutterSound: false });
+      const r = await detectFrame(photo.uri, "scene");
+      setSceneText(r.speech);
+      Speech.speak(r.speech);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Couldn't describe the scene.";
+      setSceneText(message);
+      Speech.speak("Sorry, I couldn't see that. Please try again.");
+    } finally {
+      setDescribing(false);
+    }
+  };
+
+  const statusMessage =
+    error ??
+    (describing
+      ? "Looking around…"
+      : sceneText ??
+        (activeMode && result?.speech
+          ? result.speech
+          : isSearching
+            ? `Looking for your ${searchTarget}…`
+            : isWatching
+              ? "Path looks clear."
+              : "Enter an object name, or watch for obstacles."));
 
   return (
     <View style={styles.container}>
       {/* Live camera preview */}
       <CameraView
+        ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing="back"
+        pictureSize={pictureSize}
+        animateShutter={false}
+        onCameraReady={handleCameraReady}
       />
 
       {/* Dark overlay at the top */}
@@ -128,10 +220,7 @@ export default function CameraScreen() {
           <TextInput
             style={styles.input}
             value={targetObject}
-            onChangeText={(text) => {
-              setTargetObject(text);
-              setIsSearching(false);
-            }}
+            onChangeText={setTargetObject}
             placeholder="e.g. keys, water bottle"
             placeholderTextColor={COLORS.muted}
             accessibilityLabel="Object to find"
@@ -143,27 +232,59 @@ export default function CameraScreen() {
         <Pressable
           style={[
             styles.searchButton,
-            !targetObject.trim() && styles.disabledButton,
+            isSearching && styles.stopButton,
+            !isSearching && !targetObject.trim() && styles.disabledButton,
           ]}
           accessibilityRole="button"
-          accessibilityLabel="Start object search"
+          accessibilityLabel={isSearching ? "Stop searching" : "Start object search"}
           accessibilityState={{
-            disabled: !targetObject.trim(),
+            disabled: !isSearching && !targetObject.trim(),
           }}
-          disabled={!targetObject.trim()}
+          disabled={!isSearching && !targetObject.trim()}
           onPress={handleSearch}
         >
-          <Search size={22} color="#FFFFFF" />
+          {isSearching ? (
+            <Square size={20} color="#FFFFFF" />
+          ) : (
+            <Search size={22} color="#FFFFFF" />
+          )}
 
           <Text style={styles.buttonText}>
-            {isSearching ? "Search requested" : "Start searching"}
+            {isSearching ? "Stop searching" : "Start searching"}
           </Text>
         </Pressable>
 
-        <Text style={styles.statusText}>
-          {isSearching
-            ? `Ready to search for "${targetObject.trim()}". Object detection is not connected yet.`
-            : "Enter an object name to begin."}
+        <View style={styles.secondaryRow}>
+          <Pressable
+            style={[styles.secondaryButton, isWatching && styles.secondaryActive]}
+            accessibilityRole="switch"
+            accessibilityLabel="Warn me about obstacles"
+            accessibilityState={{ checked: isWatching }}
+            onPress={toggleObstacles}
+          >
+            <ShieldAlert size={20} color="#FFFFFF" />
+            <Text style={styles.secondaryText}>
+              {isWatching ? "Stop warnings" : "Obstacles"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.secondaryButton, describing && styles.disabledButton]}
+            accessibilityRole="button"
+            accessibilityLabel="Describe what's around me"
+            disabled={describing}
+            onPress={describeScene}
+          >
+            <Eye size={20} color="#FFFFFF" />
+            <Text style={styles.secondaryText}>What's around?</Text>
+          </Pressable>
+        </View>
+
+        <Text
+          style={[styles.statusText, result?.urgent && activeMode ? styles.urgentText : null]}
+          accessibilityLiveRegion="polite"
+        >
+          {statusMessage}
         </Text>
       </View>
     </View>
@@ -287,6 +408,36 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.5,
+  },
+  stopButton: {
+    backgroundColor: COLORS.red,
+  },
+  secondaryRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: COLORS.surfaceLight,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  secondaryActive: {
+    backgroundColor: COLORS.primary,
+  },
+  secondaryText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  urgentText: {
+    color: COLORS.red,
+    fontWeight: "700",
   },
   statusText: {
     color: COLORS.muted,

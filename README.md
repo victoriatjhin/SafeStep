@@ -10,6 +10,23 @@ This fork holds my contributions to the Hack the Valley 11 team project
 
 ## My work
 
+I built SafeStep's emergency texting and its AI vision service. Both are
+backend services the app calls, each with its own test suite.
+
+**Highlights**
+
+- Built two backend services in two languages: a TypeScript (Hono) SMS server
+  and a Python (FastAPI) computer vision server
+- Used YOLO object detection to give spoken guidance with direction and
+  distance, so a blind user can find things and avoid obstacles
+- Built the SMS path to keep working when parts fail: Twilio sends the text
+  automatically, and if the server can't be reached the phone's Messages app
+  opens with the alert pre-filled
+- Added production basics to the SMS server: API key auth, rate limiting,
+  input validation and a test mode
+- Wrote 10 Vitest tests for the SMS server and 14 pytest tests for the vision
+  server
+
 | Feature | Branch | What it does |
 |---|---|---|
 | SMS alerts | [`sms-alerts`](../../tree/sms-alerts) | Texts the caretaker the patient's name and a map link to their location when they fall or ask for help |

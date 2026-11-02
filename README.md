@@ -1,4 +1,4 @@
-# SafeStep (Victoria's fork)
+# SafeStep
 
 SafeStep is a voice-first mobile app that helps blind and low-vision people get
 around more independently: finding everyday objects, hearing spoken directions,
